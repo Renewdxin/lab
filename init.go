@@ -40,7 +40,8 @@ func InitializeRouter() {
 	config.AllowOrigins = []string{"http://localhost:63342"} // 允许的前端域
 	r.Use(cors.New(config))
 
-	r.POST("/auth/login", userHandler.Login)
+	r.POST("/normal/login", userHandler.NormalLogin)
+	r.GET("/login-history/:userID", userHandler.getLoginHistory)
 	err := r.Run(":8080")
 	if err != nil {
 		panic(err)
