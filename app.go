@@ -33,3 +33,41 @@ func crackPassword(username, providedPassword string) bool {
 	// 如果没有找到匹配的密码，返回false
 	return false
 }
+
+var correctPattern = []string{"1,1", "2,2", "3,3", "4,4"}
+
+func checkPattern(input []string) bool {
+	if len(input) != len(correctPattern) {
+		return false
+	}
+
+	for i, point := range input {
+		if point != correctPattern[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func encrypt(text string, shift int) string {
+	encrypted := ""
+	for _, char := range text {
+		shiftedChar := rune(char + rune(shift))
+		encrypted += string(shiftedChar)
+	}
+	return encrypted
+}
+
+func decrypt(encrypted string, shift int) string {
+	decrypted := ""
+	for _, char := range encrypted {
+		shiftedChar := rune(char - rune(shift))
+		decrypted += string(shiftedChar)
+	}
+	return decrypted
+}
+
+// 使用
+//encryptedText := encrypt("hello", 3)
+//fmt.Println("Encrypted:", encryptedText)
+//fmt.Println("Decrypted:", decrypt(encryptedText, 3))

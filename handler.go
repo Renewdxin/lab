@@ -1,15 +1,21 @@
 package main
 
 import (
+	"fmt"
 	"github.com/gin-gonic/gin"
+	"log"
 	"net/http"
+	"strings"
 	"time"
 )
 
 type UserHandlerPort interface {
 	NormalLogin(c *gin.Context)
 	CrackLoginHandler(c *gin.Context)
+	patternHandler(c *gin.Context)
 	getLoginHistory(c *gin.Context)
+	KeywordDetectionMiddleware(keywords []string) gin.HandlerFunc
+	sendMessageHandler(c *gin.Context)
 }
 
 type UserHandlerAdapter struct {
@@ -89,4 +95,84 @@ func (handler UserHandlerAdapter) getLoginHistory(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, events)
+}
+
+func (handler UserHandlerAdapter) patternHandler(c *gin.Context) {
+	var input struct {
+		Pattern []string `json:"pattern"`
+	}
+	if err := c.BindJSON(&input); err != nil {
+		c.JSON(400, gin.H{"error": "Invalid input"})
+		return
+	}
+
+	if checkPattern(input.Pattern) {
+		c.JSON(200, gin.H{"message": "Pattern correct"})
+	} else {
+		c.JSON(403, gin.H{"message": "Pattern incorrect"})
+	}
+}
+
+var blacklistedIPs = []string{"192.168.1.4", "10.0.0.2"}
+var blacklistedUsers = []string{"user1", "user2"}
+
+func (handler UserHandlerAdapter) IPUserFilterMiddleware(c *gin.Context) {
+	user := c.PostForm("username")
+	ip := c.ClientIP()
+
+	if contains(blacklistedIPs, ip) || contains(blacklistedUsers, user) {
+		c.AbortWithStatusJSON(403, gin.H{"error": "Access denied"})
+		return
+	}
+	c.Next()
+}
+
+func (handler UserHandlerAdapter) KeywordDetectionMiddleware(keywords []string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var message struct {
+			Text string `json:"text"`
+		}
+		if err := c.BindJSON(&message); err != nil {
+			c.AbortWithStatusJSON(400, gin.H{"error": "invalid request"})
+			return
+		}
+
+		for _, keyword := range keywords {
+			if strings.Contains(message.Text, keyword) {
+				fmt.Println("Detected keyword:", message.Text) // 可以替换为其他记录行为
+				break
+			}
+		}
+
+		c.Next()
+	}
+}
+
+// 使用中间件
+
+func contains(list []string, item string) bool {
+	for _, b := range list {
+		if b == item {
+			return true
+		}
+	}
+	return false
+}
+
+func (handler UserHandlerAdapter) sendMessageHandler(c *gin.Context) {
+	var message struct {
+		Text string `json:"text"`
+	}
+
+	// 绑定JSON体到message变量
+	if err := c.BindJSON(&message); err != nil {
+		c.JSON(400, gin.H{"error": "Invalid message format"})
+		return
+	}
+
+	// 记录接收到的消息到日志，实际应用中可以替换为其他类型的处理，如存储到数据库
+	log.Printf("Received message: %s", message.Text)
+
+	// 响应客户端，确认消息已被接收
+	c.JSON(200, gin.H{"status": "Received"})
 }
