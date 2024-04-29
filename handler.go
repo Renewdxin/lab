@@ -22,6 +22,11 @@ type UserHandlerAdapter struct {
 	dao UserDaoPort
 }
 
+var (
+	blacklistedIPs   = []string{"192.168.1.4", "10.0.0.2"}
+	blacklistedUsers = []string{"user1", "user2"}
+)
+
 func NewUserHandlerAdapter(dao UserDaoPort) UserHandlerAdapter {
 	return UserHandlerAdapter{dao}
 }
@@ -43,7 +48,13 @@ func (handler UserHandlerAdapter) NormalLogin(c *gin.Context) {
 		LoginTime: time.Now(),
 		IP:        c.ClientIP(),
 	}
-	DB.Table("event").Create(&loginEvent)
+	if err := DB.Table("event").Create(&loginEvent).Error; err != nil {
+		log.Println(err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"msg": err,
+		})
+		return
+	}
 
 	c.JSON(200, gin.H{"message": "Logged in successfully"})
 
@@ -56,7 +67,6 @@ func (handler UserHandlerAdapter) NormalLogin(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"msg": "ok",
 	})
-
 }
 
 func (handler UserHandlerAdapter) CrackLoginHandler(c *gin.Context) {
@@ -70,14 +80,13 @@ func (handler UserHandlerAdapter) CrackLoginHandler(c *gin.Context) {
 	}
 
 	user := User{}
-	result := DB.Where("username = ?", loginInfo.Username).First(&user)
-	if result.Error != nil {
+	if err := DB.Where("username = ?", loginInfo.Username).First(&user).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
 		return
 	}
 
 	// 模拟字典破解
-	if crackPassword(loginInfo.Username, loginInfo.Password) {
+	if crackPassword(loginInfo.Username, user.Password) {
 		c.JSON(http.StatusOK, gin.H{"message": "Password cracked successfully"})
 	} else {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Password cracking failed"})
@@ -113,9 +122,6 @@ func (handler UserHandlerAdapter) patternHandler(c *gin.Context) {
 	}
 }
 
-var blacklistedIPs = []string{"192.168.1.4", "10.0.0.2"}
-var blacklistedUsers = []string{"user1", "user2"}
-
 func (handler UserHandlerAdapter) IPUserFilterMiddleware(c *gin.Context) {
 	user := c.PostForm("username")
 	ip := c.ClientIP()
@@ -133,7 +139,7 @@ func (handler UserHandlerAdapter) KeywordDetectionMiddleware(keywords []string) 
 			Text string `json:"text"`
 		}
 		if err := c.BindJSON(&message); err != nil {
-			c.AbortWithStatusJSON(400, gin.H{"error": "invalid request"})
+			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
 			return
 		}
 
@@ -166,7 +172,7 @@ func (handler UserHandlerAdapter) sendMessageHandler(c *gin.Context) {
 
 	// 绑定JSON体到message变量
 	if err := c.BindJSON(&message); err != nil {
-		c.JSON(400, gin.H{"error": "Invalid message format"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid message format"})
 		return
 	}
 
@@ -174,5 +180,5 @@ func (handler UserHandlerAdapter) sendMessageHandler(c *gin.Context) {
 	log.Printf("Received message: %s", message.Text)
 
 	// 响应客户端，确认消息已被接收
-	c.JSON(200, gin.H{"status": "Received"})
+	c.JSON(http.StatusOK, gin.H{"status": "Received"})
 }
