@@ -7,7 +7,7 @@ import (
 )
 
 // crackPassword 尝试使用提供的密码与字典文件中的密码进行匹配
-func crackPassword(username, providedPassword string) bool {
+func crackPassword(providedPassword string) bool {
 	// 打开字典文件
 	file, err := os.Open("dictionary.txt")
 	if err != nil {
@@ -48,26 +48,3 @@ func checkPattern(input []string) bool {
 	}
 	return true
 }
-
-func encrypt(text string, shift int) string {
-	encrypted := ""
-	for _, char := range text {
-		shiftedChar := rune(char + rune(shift))
-		encrypted += string(shiftedChar)
-	}
-	return encrypted
-}
-
-func decrypt(encrypted string, shift int) string {
-	decrypted := ""
-	for _, char := range encrypted {
-		shiftedChar := rune(char - rune(shift))
-		decrypted += string(shiftedChar)
-	}
-	return decrypted
-}
-
-// 使用
-//encryptedText := encrypt("hello", 3)
-//fmt.Println("Encrypted:", encryptedText)
-//fmt.Println("Decrypted:", decrypt(encryptedText, 3))

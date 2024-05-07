@@ -2,11 +2,12 @@ package main
 
 import (
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"log"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 type UserHandlerPort interface {
@@ -16,6 +17,7 @@ type UserHandlerPort interface {
 	getLoginHistory(c *gin.Context)
 	KeywordDetectionMiddleware(keywords []string) gin.HandlerFunc
 	sendMessageHandler(c *gin.Context)
+	ImageUnlockHandler(c *gin.Context)
 }
 
 type UserHandlerAdapter struct {
@@ -26,6 +28,17 @@ var (
 	blacklistedIPs   = []string{"192.168.1.4", "10.0.0.2"}
 	blacklistedUsers = []string{"user1", "user2"}
 )
+
+type LoginRequest struct {
+	Username string   `json:"username"`
+	Pattern  []string `json:"pattern"`
+}
+
+var userPatterns = map[string][]string{
+	"alice":   {"1,1", "1,2", "2,2", "2,3"},
+	"bob":     {"2,1", "3,1", "3,2", "4,2"},
+	"charlie": {"1,4", "2,4", "3,4", "4,4"},
+}
 
 func NewUserHandlerAdapter(dao UserDaoPort) UserHandlerAdapter {
 	return UserHandlerAdapter{dao}
@@ -86,7 +99,7 @@ func (handler UserHandlerAdapter) CrackLoginHandler(c *gin.Context) {
 	}
 
 	// 模拟字典破解
-	if crackPassword(loginInfo.Username, user.Password) {
+	if crackPassword(loginInfo.Password) {
 		c.JSON(http.StatusOK, gin.H{"message": "Password cracked successfully"})
 	} else {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Password cracking failed"})
@@ -181,4 +194,26 @@ func (handler UserHandlerAdapter) sendMessageHandler(c *gin.Context) {
 
 	// 响应客户端，确认消息已被接收
 	c.JSON(http.StatusOK, gin.H{"status": "Received"})
+}
+
+func (handler UserHandlerAdapter) ImageUnlockHandler(c *gin.Context) {
+	var request LoginRequest
+	if err := c.BindJSON(&request); err == nil {
+		expectedPattern, ok := userPatterns[request.Username]
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{"status": "error", "message": "unknown user"})
+			return
+		}
+		if len(request.Pattern) != len(expectedPattern) {
+			c.JSON(http.StatusUnauthorized, gin.H{"status": "error", "message": "invalid pattern length"})
+			return
+		}
+		for i, point := range expectedPattern {
+			if request.Pattern[i] != point {
+				c.JSON(http.StatusUnauthorized, gin.H{"status": "error", "message": "pattern does not match"})
+				return
+			}
+		}
+		c.JSON(http.StatusOK, gin.H{"status": "success", "message": "pattern verified"})
+	}
 }
